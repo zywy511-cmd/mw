@@ -282,7 +282,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           icon: icons[entry.key] ?? Icons.book,
           hp: hp,
           topPadding: index == 0 ? 8 : 0,
-          child: _CopyHorizontalComicList(
+          child: _CopyVerticalComicGrid(
             items: entry.value,
             onTap: _openComic,
             scope: scope,
@@ -964,6 +964,81 @@ class _CopyHorizontalComicList extends StatelessWidget {
               );
             },
           ),
+        );
+      },
+    );
+  }
+}
+
+/// 纵向网格：每栏目 3 列，纵向铺满展示更多漫画。
+class _CopyVerticalComicGrid extends StatelessWidget {
+  final List<Comic> items;
+  final void Function(Comic, String) onTap;
+  final String scope;
+  final int crossAxisCount;
+
+  const _CopyVerticalComicGrid({
+    required this.items,
+    required this.onTap,
+    required this.scope,
+    this.crossAxisCount = 3,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const _CopyEmptySectionMessage();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = math.max(
+          1.0,
+          _copySectionContentWidth(context, constraints),
+        );
+        final cardWidth = (contentWidth -
+                _mangaHomeCardSpacing * (crossAxisCount - 1)) /
+            crossAxisCount;
+        final cardHeight = cardWidth / _mangaHomeCardAspectRatio;
+        return GridView.builder(
+          shrinkWrap: true,
+          primary: false,
+          padding: EdgeInsets.zero,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: items.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: cardWidth / cardHeight,
+            mainAxisSpacing: _mangaHomeCardSpacing,
+            crossAxisSpacing: _mangaHomeCardSpacing,
+          ),
+          itemBuilder: (_, i) {
+            final comic = items[i];
+            return GestureDetector(
+              onTap: () => onTap(comic, ''),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: TpAwareImage(
+                        sourceKey:
+                            ThirdPartyComicSource.sourceKeyOfPathWord(
+                                comic.pathWord),
+                        url: comic.cover,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    comic.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
