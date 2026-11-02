@@ -330,8 +330,8 @@ class _ProfilePageState extends State<ProfilePage> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: _user.isLoggedIn
-                  ? _buildUserCard(cs, tt)
+              child: _user.isManwabaLoggedIn
+                  ? _buildManwabaUserCard(cs, tt)
                   : _buildDefaultUserCard(cs, tt),
             ),
           ),
@@ -469,6 +469,52 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildDefaultUserCard(ColorScheme cs, TextTheme tt) {
     return Card(
       color: cs.surfaceContainerLow,
+      child: InkWell(
+        borderRadius: AppRadius.lgR,
+        onTap: () async {
+          await context.pushNamed<bool>(AppRoutes.manwabaLogin);
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 32,
+                backgroundColor: cs.primaryContainer,
+                child: Icon(
+                  Icons.person,
+                  size: 32,
+                  color: cs.onPrimaryContainer,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('登录漫屋吧', style: tt.titleMedium),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      '登录后同步收藏与浏览记录',
+                      style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManwabaUserCard(ColorScheme cs, TextTheme tt) {
+    final name = _user.manwabaNickname?.trim().isNotEmpty == true
+        ? _user.manwabaNickname!.trim()
+        : (_user.manwabaUsername ?? '漫屋吧用户');
+    return Card(
+      color: cs.surfaceContainerLow,
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Row(
@@ -476,10 +522,12 @@ class _ProfilePageState extends State<ProfilePage> {
             CircleAvatar(
               radius: 32,
               backgroundColor: cs.primaryContainer,
-              child: Icon(
-                Icons.person,
-                size: 32,
-                color: cs.onPrimaryContainer,
+              child: Text(
+                name.isNotEmpty ? name.substring(0, 1) : '漫',
+                style: tt.titleLarge?.copyWith(
+                  color: cs.onPrimaryContainer,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.lg),
@@ -487,14 +535,40 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('漫屋吧', style: tt.titleMedium),
+                  Text(name, style: tt.titleMedium),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    '本地模式 · 无需登录',
+                    '已登录漫屋吧账号',
                     style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                   ),
                 ],
               ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: '退出登录',
+              onPressed: () async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('退出登录'),
+                    content: const Text('确定要退出当前漫屋吧账号吗？'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('取消'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('退出'),
+                      ),
+                    ],
+                  ),
+                );
+                if (ok == true) {
+                  await _user.clearManwabaAuth();
+                }
+              },
             ),
           ],
         ),

@@ -1,13 +1,11 @@
 import 'manwaba_source.dart';
 import 'third_party_source.dart';
-import 'waman3_source.dart';
 
-/// 第三方漫源注册表：漫屋3 + 漫屋吧。
+/// 第三方漫源注册表：仅保留漫屋吧。
 class ThirdPartySources {
   ThirdPartySources._();
 
   static final List<ThirdPartyComicSource> all = [
-    Waman3Source.instance,
     ManwabaSource.instance,
   ];
 

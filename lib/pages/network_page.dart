@@ -10,7 +10,6 @@ import '../api/api_transport.dart'
         defaultCopyLoginHost,
         copyLoginHostOptions;
 import '../api/third_party/manwaba_source.dart';
-import '../api/third_party/waman3_source.dart';
 import '../l10n/app_localizations.dart';
 import '../models/user_manager.dart';
 import '../theme/app_radius.dart';
@@ -50,11 +49,8 @@ class _NetworkPageState extends State<NetworkPage>
   bool _advancedExpanded = false;
   NetworkProxyType _manualProxyType = NetworkProxyType.http;
 
-  // ── 第三方漫源网络设置（漫屋3 / 漫屋吧）──
+  // ── 第三方漫源网络设置（漫屋吧）──
   bool _thirdPartyExpanded = true;
-  String? _waman3BaseUrl;
-  bool _waman3Testing = false;
-  String? _waman3Hint;
   String? _manwabaApiHost;
   String? _manwabaImageHost;
   bool _manwabaDetecting = false;
@@ -76,7 +72,6 @@ class _NetworkPageState extends State<NetworkPage>
     _copyApiHostController.text = _user.copyApiHost;
     _copyAppVersionController.text = _user.copyAppVersion;
     _manualProxyType = _user.networkProxyType;
-    _waman3BaseUrl = _user.waman3BaseUrl;
     _manwabaApiHost = _user.manwabaApiHost;
     _manwabaImageHost = _user.manwabaImageHost;
     _user.addListener(_onChanged);
@@ -1387,7 +1382,7 @@ class _NetworkPageState extends State<NetworkPage>
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // 第三方漫源网络设置（漫屋3 / 漫屋吧）
+  // 第三方漫源网络设置（漫屋吧）
   // ─────────────────────────────────────────────────────────────────────
 
   Widget _buildThirdPartyCard(
@@ -1425,7 +1420,7 @@ class _NetworkPageState extends State<NetworkPage>
                       ),
                     ),
                     Text(
-                      '漫屋3 · 漫屋吧',
+                      '漫屋吧',
                       style: tt.labelSmall?.copyWith(
                         color: cs.onSurfaceVariant,
                         letterSpacing: 1.0,
@@ -1456,76 +1451,6 @@ class _NetworkPageState extends State<NetworkPage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Divider(height: 1, color: cs.outlineVariant),
-                        const SizedBox(height: AppSpacing.md),
-                        Text(
-                          '漫屋3',
-                          style: tt.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        DropdownButtonFormField<String>(
-                          initialValue: _waman3BaseUrl,
-                          decoration: const InputDecoration(
-                            labelText: '漫屋3 API 地址',
-                            helperText: '切换后需点「保存设置」生效',
-                            prefixIcon: Icon(Icons.dns_rounded),
-                            border: OutlineInputBorder(),
-                          ),
-                          items: [
-                            for (final url in Waman3Source.baseUrlOptions)
-                              DropdownMenuItem<String>(
-                                value: url,
-                                child: Text(url),
-                              ),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() => _waman3BaseUrl = value);
-                            }
-                          },
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        SizedBox(
-                          width: double.infinity,
-                          child: _ConnectedButtonGroup(
-                            children: [
-                              _ConnectedButtonGroupItem(
-                                onPressed:
-                                    _waman3Testing ? null : _testWaman3,
-                                loadingWidget: _waman3Testing
-                                    ? SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: cs.primary,
-                                        ),
-                                      )
-                                    : null,
-                                icon: _waman3Testing ? null : Icons.speed,
-                                label: '测速',
-                              ),
-                              _ConnectedButtonGroupItem(
-                                onPressed: _saveWaman3Settings,
-                                icon: Icons.save_outlined,
-                                label: '保存设置',
-                                isPrimary: true,
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_waman3Hint != null) ...[
-                          const SizedBox(height: AppSpacing.sm),
-                          Text(
-                            _waman3Hint!,
-                            style: tt.bodySmall?.copyWith(
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: AppSpacing.lg),
                         Divider(height: 1, color: cs.outlineVariant),
                         const SizedBox(height: AppSpacing.md),
                         Text(
@@ -1627,48 +1552,6 @@ class _NetworkPageState extends State<NetworkPage>
         ],
       ),
     );
-  }
-
-  Future<void> _testWaman3() async {
-    setState(() {
-      _waman3Testing = true;
-      _waman3Hint = null;
-    });
-    try {
-      final results = await Waman3Source.instance.speedTest();
-      if (!mounted) return;
-      setState(() {
-        _waman3Testing = false;
-        if (results.isEmpty) {
-          _waman3Hint = '所有节点均不可达，请检查网络或代理设置';
-        } else {
-          final lines = results
-              .map((r) => '${r.url}  ${r.latencyMs}ms')
-              .join('\n');
-          _waman3Hint = '测速结果（按延迟升序）：\n$lines\n\n'
-              '已将最快节点「${results.first.url}」填入上方下拉框，点「保存设置」生效';
-          _waman3BaseUrl = results.first.url;
-        }
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _waman3Testing = false;
-        _waman3Hint = '测速失败：$e';
-      });
-    }
-  }
-
-  Future<void> _saveWaman3Settings() async {
-    final value = _waman3BaseUrl?.trim() ?? '';
-    if (value.isEmpty) {
-      showToast(context, '请先选择漫屋3 API 地址', isError: true);
-      return;
-    }
-    await _user.setWaman3BaseUrl(value);
-    if (mounted) {
-      showToast(context, '漫屋3 设置已保存');
-    }
   }
 
   Future<void> _detectManwaba() async {

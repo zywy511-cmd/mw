@@ -55,20 +55,19 @@ class _SearchPageState extends State<SearchPage> {
   List<Anime> _animes = [];
 
   // ── 单源搜索状态 ──
-  // 'waman3'=漫屋3 'manwaba'=漫屋吧
+  // 'manwaba'=漫屋吧（唯一漫源）
   static const _sourceOptions = [
-    ('waman3', '漫屋3'),
     ('manwaba', '漫屋吧'),
   ];
-  String _sourceFilter = 'manwaba'; // 默认搜索漫屋吧
+  String _sourceFilter = 'manwaba'; // 搜索漫屋吧
   final Map<String, int> _sourcePages = {}; // 每源已加载页码
   final Map<String, int> _sourceMaxPages = {}; // 每源最大页码
   final Map<String, int> _sourceTotals = {}; // 每源总条数
   final List<String> _sourceLabels = []; // 与 _comics 逐项对齐的来源名
-  int _pendingSearches = 0; // 「全部」模式并行首查未完成数
+  int _pendingSearches = 0; // 并行首查未完成数
 
-  // 「全部」模式源列表
-  static const _allSources = ['waman3', 'manwaba'];
+  // 「全部」模式源列表（仅漫屋吧）
+  static const _allSources = ['manwaba'];
 
   // 漫屋吧分类标签
   static const _manwabaCategories = [
@@ -616,45 +615,6 @@ class _SearchPageState extends State<SearchPage> {
                     ],
                     selected: {_mode},
                     onSelectionChanged: (v) => _setMode(v.first),
-                  ),
-                ),
-              ),
-            if (!_isAnimeMode)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(hp, 8, hp, 4),
-                  child: Text(
-                    '点击漫屋吧或漫屋3切换搜索源',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                  ),
-                ),
-              ),
-            if (!_isAnimeMode)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(hp, 0, hp, 8),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final (key, label) in _sourceOptions)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(label),
-                              selected: _sourceFilter == key,
-                              onSelected: (_) {
-                                if (_sourceFilter == key) return;
-                                setState(() => _sourceFilter = key);
-                                final keyword = _searchQuery;
-                                if (keyword != null) _doSearch(keyword);
-                              },
-                            ),
-                          ),
-                      ],
-                    ),
                   ),
                 ),
               ),

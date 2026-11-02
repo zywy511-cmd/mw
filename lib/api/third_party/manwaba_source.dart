@@ -27,10 +27,11 @@ class ManwabaSource extends ThirdPartyComicSource {
   String get name => '漫屋吧';
 
   // ── 站点常量（与 Venera 源一致）──
-  static const defaultApiHost = 'manwali.cc';
+  static const defaultApiHost = 'manwabb.cc';
   static const defaultImageHost = 'tu.mwzu.cc';
   static const lostPageHosts = ['https://manwami.cc', 'https://manwala.cc'];
   static const candidateApiHosts = [
+    'manwabb.cc',
     'manwali.cc',
     'manwaye.cc',
     'manwalu.cc',
@@ -47,6 +48,7 @@ class ManwabaSource extends ThirdPartyComicSource {
   /// 设置下拉选项：漫画站域名。
   static const apiHostOptions = [
     ('auto', '自动检测(推荐)'),
+    ('manwabb.cc', 'manwabb.cc'),
     ('manwali.cc', 'manwali.cc'),
     ('manwaye.cc', 'manwaye.cc'),
     ('manwalu.cc', 'manwalu.cc'),

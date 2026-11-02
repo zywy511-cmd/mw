@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
+import '../api/third_party/manwaba_auth.dart';
 import '../api/third_party/third_party_source.dart';
 import '../api/third_party/third_party_sources.dart';
 import '../models/comic.dart' hide Theme;
+import '../models/user_manager.dart';
+import '../routing/app_router.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../utils/local_favorites.dart';
@@ -51,32 +55,51 @@ class _ThirdPartyComicDetailPageState extends State<ThirdPartyComicDetailPage> {
   }
 
   Future<void> _checkFavorite() async {
+    final user = UserManager();
+    if (user.isManwabaLoggedIn && _source?.key == 'manwaba') {
+      try {
+        final fav = await ManwabaAuth.instance.checkFavorite(_comicId);
+        if (!mounted) return;
+        setState(() => _isFavorited = fav);
+        return;
+      } catch (_) {
+        // 失败时回退本地状态
+      }
+    }
     final fav = await LocalFavorites.instance.isFavorite(widget.pathWord);
     if (!mounted) return;
     setState(() => _isFavorited = fav);
   }
 
   Future<void> _toggleFavorite() async {
-    final detail = _detail;
-    if (detail == null) return;
-    final item = LocalFavoriteItem(
-      pathWord: widget.pathWord,
-      name: detail.title,
-      cover: detail.cover,
-      sourceKey: _source?.key ?? '',
-      sourceName: _source?.name ?? '',
-      author: detail.authors.isNotEmpty ? detail.authors.join(' / ') : null,
-      addedAt: DateTime.now(),
-    );
-    final result = await LocalFavorites.instance.toggle(item);
-    if (!mounted) return;
-    setState(() => _isFavorited = result);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(result ? '已添加到收藏' : '已取消收藏'),
-        duration: const Duration(milliseconds: 1200),
-      ),
-    );
+    final user = UserManager();
+    // 未登录：跳转漫屋吧登录页。
+    if (!user.isManwabaLoggedIn) {
+      final logged = await context.pushNamed<bool>(AppRoutes.manwabaLogin);
+      if (logged == true) {
+        _checkFavorite();
+      }
+      return;
+    }
+    if (_source?.key != 'manwaba') return;
+
+    final wasFav = _isFavorited;
+    // 乐观更新
+    setState(() => _isFavorited = !wasFav);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      if (wasFav) {
+        await ManwabaAuth.instance.deleteFavorite(_comicId);
+        messenger.showSnackBar(const SnackBar(content: Text('已取消收藏')));
+      } else {
+        await ManwabaAuth.instance.addFavorite(_comicId);
+        messenger.showSnackBar(const SnackBar(content: Text('已加入收藏')));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isFavorited = wasFav);
+      messenger.showSnackBar(SnackBar(content: Text('操作失败：$e')));
+    }
   }
 
   Future<void> _load() async {

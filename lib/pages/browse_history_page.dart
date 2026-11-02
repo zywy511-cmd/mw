@@ -1,13 +1,17 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../api/third_party/manwaba_auth.dart';
+import '../api/third_party/third_party_source.dart';
+import '../api/third_party/third_party_sources.dart';
 import '../models/comic.dart' hide Theme;
+import '../models/user_manager.dart';
 import '../routing/app_router.dart';
 import '../theme/app_spacing.dart';
-import '../utils/local_history.dart';
-import '../widgets/comic_hero_tags.dart';
+import '../widgets/third_party_image.dart';
 
-/// 本地浏览记录页面（无需登录）
+/// 浏览记录页面：登录漫屋吧后展示账号云端浏览记录。
 class BrowseHistoryPage extends StatefulWidget {
   final WidgetBuilder loginPageBuilder; // 保留兼容，不再使用
 
@@ -18,22 +22,80 @@ class BrowseHistoryPage extends StatefulWidget {
 }
 
 class _BrowseHistoryPageState extends State<BrowseHistoryPage> {
-  List<LocalHistoryItem> _items = [];
+  final _user = UserManager();
+  final List<ManwabaHistoryItem> _items = [];
   bool _loading = true;
+  int _page = 1;
+  bool _hasNext = true;
+  bool _loadingMore = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _user.addListener(_onUserChanged);
+    _load(reset: true);
   }
 
-  Future<void> _load() async {
-    final list = await LocalHistory.instance.getAll();
+  @override
+  void dispose() {
+    _user.removeListener(_onUserChanged);
+    super.dispose();
+  }
+
+  void _onUserChanged() {
     if (!mounted) return;
-    setState(() {
-      _items = list;
-      _loading = false;
-    });
+    if (_user.isManwabaLoggedIn) {
+      _load(reset: true);
+    } else {
+      setState(() {
+        _items.clear();
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _load({bool reset = false}) async {
+    if (!_user.isManwabaLoggedIn) {
+      setState(() {
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
+    if (reset) {
+      setState(() {
+        _loading = true;
+        _error = null;
+        _page = 1;
+        _items.clear();
+      });
+    } else {
+      if (_loadingMore || !_hasNext) return;
+      setState(() => _loadingMore = true);
+    }
+    try {
+      final result = await ManwabaAuth.instance.listHistory(
+        page: _page,
+        pageSize: 30,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (reset) _items.clear();
+        _items.addAll(result.list);
+        _hasNext = result.hasNext;
+        if (result.hasNext) _page++;
+        _loading = false;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+        _loading = false;
+        _loadingMore = false;
+      });
+    }
   }
 
   Future<void> _clearHistory() async {
@@ -55,15 +117,40 @@ class _BrowseHistoryPageState extends State<BrowseHistoryPage> {
       ),
     );
     if (confirmed == true) {
-      await LocalHistory.instance.clear();
-      await _load();
+      try {
+        await ManwabaAuth.instance.clearHistory();
+        await _load(reset: true);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('清空失败：$e')),
+          );
+        }
+      }
     }
   }
 
-  void _openComic(LocalHistoryItem item) {
+  Future<void> _removeItem(ManwabaHistoryItem item) async {
+    try {
+      await ManwabaAuth.instance.deleteHistory(item.id);
+      if (!mounted) return;
+      final targetId = item.id;
+      setState(() => _items.removeWhere((ManwabaHistoryItem e) => e.id == targetId));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('删除失败：$e')),
+        );
+      }
+    }
+  }
+
+  void _openComic(ManwabaHistoryItem item) {
+    final source = ThirdPartySources.byKey('manwaba');
+    if (source == null) return;
     context.pushNamed(
       AppRoutes.comicDetail,
-      pathParameters: {'pathWord': item.pathWord},
+      pathParameters: {'pathWord': source.encodeComicId(item.comicId)},
     );
   }
 
@@ -71,15 +158,13 @@ class _BrowseHistoryPageState extends State<BrowseHistoryPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final contentWidth = screenWidth.clamp(0.0, 900.0);
-    final hp = (screenWidth - contentWidth) / 2 + 16;
+    final loggedIn = _user.isManwabaLoggedIn;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('浏览记录'),
         actions: [
-          if (_items.isNotEmpty)
+          if (loggedIn && _items.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: '清空',
@@ -87,44 +172,123 @@ class _BrowseHistoryPageState extends State<BrowseHistoryPage> {
             ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _items.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.history,
-                        size: 64,
-                        color: cs.onSurfaceVariant.withOpacity(0.5),
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        '暂无浏览记录',
-                        style: tt.titleMedium?.copyWith(color: cs.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.separated(
-                  padding: EdgeInsets.fromLTRB(hp, 16, hp, 32),
-                  itemCount: _items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (ctx, i) {
-                    final item = _items[i];
-                    return _HistoryCard(item: item, onTap: () => _openComic(item));
-                  },
-                ),
+      body: !loggedIn
+          ? _buildLoginPrompt(cs, tt)
+          : _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? _buildError(cs, tt)
+                  : _items.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.history,
+                                  size: 64,
+                                  color: cs.onSurfaceVariant.withOpacity(0.5)),
+                              const SizedBox(height: AppSpacing.lg),
+                              Text('暂无浏览记录',
+                                  style: tt.titleMedium
+                                      ?.copyWith(color: cs.onSurfaceVariant)),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: () => _load(reset: true),
+                          child: NotificationListener<ScrollNotification>(
+                            onNotification: (n) {
+                              if (n.metrics.pixels >=
+                                      n.metrics.maxScrollExtent - 200 &&
+                                  !_loadingMore &&
+                                  _hasNext) {
+                                _load();
+                              }
+                              return false;
+                            },
+                            child: ListView.separated(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _items.length + (_hasNext ? 1 : 0),
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (ctx, i) {
+                                if (i >= _items.length) {
+                                  return const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
+                                final item = _items[i];
+                                return _HistoryCard(
+                                  item: item,
+                                  onTap: () => _openComic(item),
+                                  onRemove: () => _removeItem(item),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+    );
+  }
+
+  Widget _buildLoginPrompt(ColorScheme cs, TextTheme tt) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock_outline, size: 64, color: cs.onSurfaceVariant),
+            const SizedBox(height: AppSpacing.lg),
+            Text('登录后查看浏览记录',
+                style: tt.titleMedium?.copyWith(color: cs.onSurfaceVariant)),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              '浏览记录将与漫屋吧账号同步',
+              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            FilledButton(
+              onPressed: () => context.pushNamed(AppRoutes.manwabaLogin),
+              child: const Text('去登录'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildError(ColorScheme cs, TextTheme tt) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.cloud_off, size: 48, color: cs.onSurfaceVariant),
+          const SizedBox(height: AppSpacing.md),
+          Text(_error!, style: tt.bodySmall),
+          const SizedBox(height: AppSpacing.md),
+          FilledButton.tonal(
+            onPressed: () => _load(reset: true),
+            child: const Text('重试'),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _HistoryCard extends StatelessWidget {
-  final LocalHistoryItem item;
+  final ManwabaHistoryItem item;
   final VoidCallback onTap;
+  final VoidCallback onRemove;
 
-  const _HistoryCard({required this.item, required this.onTap});
+  const _HistoryCard({
+    required this.item,
+    required this.onTap,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -140,17 +304,17 @@ class _HistoryCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 封面占位（本地记录没存封面，显示默认图标）
-              Container(
-                width: 56,
-                height: 76,
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.book,
-                  color: cs.onSurfaceVariant,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 56,
+                  height: 76,
+                  child: item.cover.isEmpty
+                      ? Container(
+                          color: cs.surfaceContainerHighest,
+                          child: Icon(Icons.book, color: cs.onSurfaceVariant),
+                        )
+                      : TpAwareImage(sourceKey: 'manwaba', url: item.cover),
                 ),
               ),
               const SizedBox(width: 12),
@@ -159,34 +323,35 @@ class _HistoryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item.name,
+                      item.title,
                       style: tt.titleSmall,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      item.sourceName,
-                      style: tt.bodySmall?.copyWith(color: cs.primary),
-                    ),
-                    if (item.chapterName != null) ...[
-                      const SizedBox(height: 2),
+                    if (item.chapterTitle != null &&
+                        item.chapterTitle!.isNotEmpty)
                       Text(
-                        '读到：${item.chapterName}${item.page != null ? ' · 第${item.page}页' : ''}',
-                        style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                        '读到：${item.chapterTitle}',
+                        style: tt.bodySmall
+                            ?.copyWith(color: cs.onSurfaceVariant),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ],
                     const SizedBox(height: 4),
                     Text(
-                      _formatTime(item.viewedAt),
-                      style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                      _formatTime(item.timestamp),
+                      style: tt.bodySmall
+                          ?.copyWith(color: cs.onSurfaceVariant),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+              IconButton(
+                icon: Icon(Icons.close, size: 18, color: cs.onSurfaceVariant),
+                onPressed: onRemove,
+                tooltip: '移除',
+              ),
             ],
           ),
         ),
@@ -194,7 +359,8 @@ class _HistoryCard extends StatelessWidget {
     );
   }
 
-  String _formatTime(DateTime dt) {
+  String _formatTime(DateTime? dt) {
+    if (dt == null) return '';
     final now = DateTime.now();
     final diff = now.difference(dt);
     if (diff.inMinutes < 1) return '刚刚';

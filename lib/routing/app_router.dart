@@ -25,6 +25,7 @@ import '../pages/license_page.dart';
 import '../pages/local_anime_page.dart';
 import '../pages/local_comics_page.dart';
 import '../pages/login_page.dart' show LoginPage;
+import '../pages/manwaba_login_page.dart' show ManwabaLoginPage;
 import '../pages/network_page.dart';
 import '../pages/notice_center_page.dart';
 import '../pages/profile_page.dart'
@@ -67,6 +68,7 @@ final class AppRoutes {
   static const register = 'register';
   static const copyRegister = 'copy_register';
   static const webviewLogin = 'webview_login';
+  static const manwabaLogin = 'manwaba_login';
   static const general = 'general';
   static const appearance = 'appearance';
   static const network = 'network';
@@ -374,6 +376,11 @@ GoRouter createAppRouter() {
         path: '/login/webview',
         name: AppRoutes.webviewLogin,
         builder: (_, _) => const WebViewLoginPage(),
+      ),
+      GoRoute(
+        path: '/manwaba-login',
+        name: AppRoutes.manwabaLogin,
+        builder: (_, _) => const ManwabaLoginPage(),
       ),
       GoRoute(
         path: '/general',

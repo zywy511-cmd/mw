@@ -79,7 +79,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   void initState() {
     super.initState();
     _user.addListener(_onUserChanged);
-    // 仅保留第三方漫源（漫屋吧/漫屋3），若用户之前停在 hot/copy 则重置为 manwaba
+    // 仅保留漫屋吧漫源，若用户之前停在其他源则重置为 manwaba
     if (!_isThirdPartySource) {
       _user.setMangaHomeSource('manwaba');
       _activeSource = 'manwaba';
@@ -113,7 +113,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   bool get _isThirdPartySource {
     final source = _user.mangaHomeSource;
-    return source == 'waman3' || source == 'manwaba';
+    return source == 'manwaba';
   }
 
   ThirdPartyComicSource? get _tpSource =>
@@ -237,16 +237,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  /// 右下角按钮组：漫屋吧/漫屋3 切换。
-  Widget _buildFabColumn() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        _buildSourceFab(),
-      ],
-    );
-  }
+  /// 右下角按钮组：仅漫屋吧一个漫源，无需切换悬浮按钮。
+  Widget? _buildFabColumn() => null;
 
   /// 第三方漫源主页各板块（复用 COPY 的折叠卡片样式）。
   List<Widget> _buildThirdPartySlivers(
@@ -322,25 +314,6 @@ class _HomePageState extends ConsumerState<HomePage> {
       );
     }
     return slivers;
-  }
-
-  /// 右下角切换漫屋吧 / 漫屋3 首页数据源的悬浮按钮
-  Widget _buildSourceFab() {
-    final isWaman3 = _user.mangaHomeSource == 'waman3';
-    return FloatingActionButton.extended(
-      heroTag: 'home-source-switch',
-      tooltip: isWaman3 ? '切换到漫屋吧' : '切换到漫屋3',
-      onPressed: () => _user.setMangaHomeSource(isWaman3 ? 'manwaba' : 'waman3'),
-      icon: const Icon(Icons.swap_horiz, size: 20),
-      label: Text(
-        isWaman3 ? '漫屋3' : '漫屋吧',
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
   }
 
   /// COPY 首页各板块

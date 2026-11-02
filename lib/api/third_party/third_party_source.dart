@@ -54,14 +54,14 @@ class ThirdPartyImageRequest {
   const ThirdPartyImageRequest({this.headers = const {}, this.decryptor});
 }
 
-/// 第三方漫源抽象（漫屋3 / 漫屋吧）。
+/// 第三方漫源抽象（漫屋吧）。
 ///
 /// 本轮覆盖：主页板块 + 关键词搜索 + 详情/章节 + 章节图片 + 图片解密加载。
 abstract class ThirdPartyComicSource {
-  /// 源 key：`waman3` / `manwaba`，用于 pathWord 前缀与设置持久化。
+  /// 源 key：`manwaba`，用于 pathWord 前缀与设置持久化。
   String get key;
 
-  /// 展示名：漫屋3 / 漫屋吧。
+  /// 展示名：漫屋吧。
   String get name;
 
   /// 主页板块：板块标题 -> 漫画列表。
@@ -79,7 +79,7 @@ abstract class ThirdPartyComicSource {
   /// 图片加载配置；null 表示普通直链（无 headers/解密需求）。
   ThirdPartyImageRequest? imageRequest(String url);
 
-  /// 生成带源前缀的 pathWord，避免跨源 id 冲突：`waman3:123456`。
+  /// 生成带源前缀的 pathWord，避免跨源 id 冲突：`manwaba:123456`。
   String encodeComicId(String comicId) => '$key:$comicId';
 
   /// 从 pathWord 反向解析源 key；非第三方 pathWord 返回 null。
@@ -89,7 +89,7 @@ abstract class ThirdPartyComicSource {
     return pathWord.substring(0, sep);
   }
 
-  /// 从带前缀的 pathWord 取出纯漫画 id（`waman3:123456` -> `123456`）。
+  /// 从带前缀的 pathWord 取出纯漫画 id（`manwaba:123456` -> `123456`）。
   static String comicIdOfPathWord(String pathWord) {
     final sep = pathWord.indexOf(':');
     return sep <= 0 ? pathWord : pathWord.substring(sep + 1);

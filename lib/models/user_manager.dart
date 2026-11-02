@@ -181,11 +181,14 @@ class UserManager extends ChangeNotifier {
   static const _keyBannerVisible = 'banner_visible';
   static const _keyMangaHomeSource = 'manga_home_source';
   static const _keyTpMangaSource = 'tp_manga_source';
-  static const _keyWaman3BaseUrl = 'tp_waman3_base_url';
   static const _keyManwabaApiHost = 'tp_manwaba_api_host';
   static const _keyManwabaImageHost = 'tp_manwaba_image_host';
   static const _keyManwabaDetectedApi = 'tp_manwaba_detected_api';
   static const _keyManwabaDetectedImage = 'tp_manwaba_detected_image';
+  static const _keyManwabaToken = 'tp_manwaba_token';
+  static const _keyManwabaUserId = 'tp_manwaba_user_id';
+  static const _keyManwabaUsername = 'tp_manwaba_username';
+  static const _keyManwabaNickname = 'tp_manwaba_nickname';
   static const _keyCopyApiHost = 'copy_api_host';
   static const _keyCopyLoginHost = 'copy_login_host';
   static const _keyCustomCopyLoginHosts = 'copy_login_host_custom';
@@ -273,13 +276,17 @@ class UserManager extends ChangeNotifier {
   String _locale = ''; // '' = follow system, 'zh' = 简体, 'zh-Hant' = 繁体
   bool _bannerVisible = false;
   String _mangaHomeSource = 'manwaba';
-  // 第三方漫源（漫屋3/漫屋吧）主页切换按钮当前选中项
+  // 第三方漫源（漫屋吧）主页选中项
   String _tpMangaSource = 'manwaba';
-  String _waman3BaseUrl = 'https://mseeowpma.cc';
   String _manwabaApiHost = 'auto';
   String _manwabaImageHost = 'auto';
   String _manwabaDetectedApiHost = '';
   String _manwabaDetectedImageHost = '';
+  // 漫屋吧账号系统
+  String? _manwabaToken;
+  String? _manwabaUserId;
+  String? _manwabaUsername;
+  String? _manwabaNickname;
   String _copyApiHost = defaultCopyApiHost;
   String _copyLoginHost = defaultCopyLoginHost;
   List<String> _customCopyLoginHosts = [];
@@ -394,10 +401,8 @@ class UserManager extends ChangeNotifier {
   String get locale => _locale;
   bool get bannerVisible => _bannerVisible;
   String get mangaHomeSource => _mangaHomeSource;
-  /// 第三方漫源（漫屋3/漫屋吧）切换按钮当前选中项
+  /// 第三方漫源（漫屋吧）当前选中项
   String get thirdPartyMangaSource => _tpMangaSource;
-  /// 漫屋3 API 地址
-  String get waman3BaseUrl => _waman3BaseUrl;
   /// 漫屋吧 漫画站域名（'auto' = 自动检测）
   String get manwabaApiHost => _manwabaApiHost;
   /// 漫屋吧 图片源（'auto' = 自动检测）
@@ -406,6 +411,17 @@ class UserManager extends ChangeNotifier {
   String get manwabaDetectedApiHost => _manwabaDetectedApiHost;
   /// 漫屋吧 自动检测缓存的可用图片源域名
   String get manwabaDetectedImageHost => _manwabaDetectedImageHost;
+  /// 漫屋吧登录 token
+  String? get manwabaToken => _manwabaToken;
+  /// 漫屋吧用户 ID
+  String? get manwabaUserId => _manwabaUserId;
+  /// 漫屋吧用户名
+  String? get manwabaUsername => _manwabaUsername;
+  /// 漫屋吧昵称
+  String? get manwabaNickname => _manwabaNickname;
+  /// 是否已登录漫屋吧账号
+  bool get isManwabaLoggedIn =>
+      _manwabaToken != null && _manwabaToken!.isNotEmpty;
   String get copyApiHost => _copyApiHost;
   String get copyLoginHost => _copyLoginHost;
 
@@ -642,13 +658,16 @@ class UserManager extends ChangeNotifier {
     _bannerVisible = prefs.getBool(_keyBannerVisible) ?? false;
     _mangaHomeSource = prefs.getString(_keyMangaHomeSource) ?? 'manwaba';
     _tpMangaSource = prefs.getString(_keyTpMangaSource) ?? 'manwaba';
-    _waman3BaseUrl = prefs.getString(_keyWaman3BaseUrl) ?? 'https://mseeowpma.cc';
     _manwabaApiHost = prefs.getString(_keyManwabaApiHost) ?? 'auto';
     _manwabaImageHost = prefs.getString(_keyManwabaImageHost) ?? 'auto';
     _manwabaDetectedApiHost =
         prefs.getString(_keyManwabaDetectedApi)?.trim() ?? '';
     _manwabaDetectedImageHost =
         prefs.getString(_keyManwabaDetectedImage)?.trim() ?? '';
+    _manwabaToken = prefs.getString(_keyManwabaToken);
+    _manwabaUserId = prefs.getString(_keyManwabaUserId);
+    _manwabaUsername = prefs.getString(_keyManwabaUsername);
+    _manwabaNickname = prefs.getString(_keyManwabaNickname);
     _copyApiHost = normalizeCopyApiHost(prefs.getString(_keyCopyApiHost));
     _copyLoginHost = normalizeCopyLoginHost(prefs.getString(_keyCopyLoginHost));
     _customCopyLoginHosts =
@@ -1366,7 +1385,7 @@ class UserManager extends ChangeNotifier {
   }
 
   Future<void> setThirdPartyMangaSource(String source) async {
-    if (source != 'waman3' && source != 'manwaba') return;
+    if (source != 'manwaba') return;
     if (_tpMangaSource == source) return;
     _tpMangaSource = source;
     final prefs = await SharedPreferences.getInstance();
@@ -1374,13 +1393,38 @@ class UserManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setWaman3BaseUrl(String value) async {
-    final normalized = value.trim();
-    if (normalized.isEmpty) return;
-    if (_waman3BaseUrl == normalized) return;
-    _waman3BaseUrl = normalized;
+  /// 保存漫屋吧登录态。
+  Future<void> setManwabaAuth({
+    required String token,
+    String? userId,
+    String? username,
+    String? nickname,
+  }) async {
+    _manwabaToken = token;
+    _manwabaUserId = userId;
+    _manwabaUsername = username;
+    _manwabaNickname = nickname;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyWaman3BaseUrl, normalized);
+    await prefs.setString(_keyManwabaToken, token);
+    if (userId != null) await prefs.setString(_keyManwabaUserId, userId);
+    if (username != null) await prefs.setString(_keyManwabaUsername, username);
+    if (nickname != null) {
+      await prefs.setString(_keyManwabaNickname, nickname);
+    }
+    notifyListeners();
+  }
+
+  /// 清除漫屋吧登录态（退出登录）。
+  Future<void> clearManwabaAuth() async {
+    _manwabaToken = null;
+    _manwabaUserId = null;
+    _manwabaUsername = null;
+    _manwabaNickname = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyManwabaToken);
+    await prefs.remove(_keyManwabaUserId);
+    await prefs.remove(_keyManwabaUsername);
+    await prefs.remove(_keyManwabaNickname);
     notifyListeners();
   }
 

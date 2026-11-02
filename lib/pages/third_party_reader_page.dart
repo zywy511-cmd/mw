@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
+import '../api/third_party/manwaba_auth.dart';
 import '../api/third_party/third_party_source.dart';
 import '../api/third_party/third_party_sources.dart';
 import '../l10n/app_localizations.dart';
@@ -111,6 +112,13 @@ class _ThirdPartyReaderPageState extends State<ThirdPartyReaderPage> {
         viewedAt: DateTime.now(),
       ),
     );
+    // 漫屋吧登录后上报云端阅读记录。
+    if (widget.sourceKey == 'manwaba' &&
+        UserManager().isManwabaLoggedIn) {
+      unawaited(
+        ManwabaAuth.instance.recordHistory(widget.comicId, chapter.id),
+      );
+    }
   }
 
   @override

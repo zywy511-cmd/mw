@@ -8,6 +8,9 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_client.dart';
+import '../api/third_party/manwaba_auth.dart';
+import '../api/third_party/third_party_source.dart';
+import '../api/third_party/third_party_sources.dart';
 import '../l10n/app_localizations.dart';
 import '../models/anime.dart';
 import '../models/api_ordering.dart';
@@ -62,6 +65,7 @@ class _BookshelfPageState extends ConsumerState<BookshelfPage> {
   late bool _lastIsLoggedIn = _user.isLoggedIn;
   late String? _lastToken = _user.token;
   late bool _lastAnimeFeatureEnabled = _user.animeFeatureEnabled;
+  late bool _lastMwLoggedIn = _user.isManwabaLoggedIn;
   _BookshelfType _type = _BookshelfType.comic;
   late String _ordering = _user.bookshelfOrdering;
   bool _showUpdateOnly = false;
@@ -70,6 +74,14 @@ class _BookshelfPageState extends ConsumerState<BookshelfPage> {
   // 本地收藏（未登录时使用）
   List<LocalFavoriteItem> _localFavorites = [];
   bool _loadingLocalFavorites = false;
+
+  // 漫屋吧云端收藏
+  final List<ManwabaFavoriteItem> _mwFavorites = [];
+  bool _mwLoading = false;
+  bool _mwLoadingMore = false;
+  int _mwPage = 1;
+  bool _mwHasNext = true;
+  String? _mwError;
 
   static const _showUpdateOnlyKey = 'local_bookshelf_show_update_only';
   static const _legacyShowUpdateOnlyKey = 'bookshelf_show_update_only';
@@ -91,10 +103,133 @@ class _BookshelfPageState extends ConsumerState<BookshelfPage> {
       _tryLoadCache().then((_) {
         if (mounted && _currentItemsEmpty) _load(silent: true);
       });
+    } else if (_user.isManwabaLoggedIn) {
+      _loadMwFavorites(reset: true);
     } else {
       _loading = false;
       _loadLocalFavorites();
     }
+  }
+
+  Widget? _buildManwabaBookshelf(double screenWidth) {
+    if (!_user.isManwabaLoggedIn) return null;
+    final contentWidth = screenWidth.clamp(0.0, 900.0);
+    final hp = (screenWidth - contentWidth) / 2 + 16;
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: () => _loadMwFavorites(reset: true),
+        edgeOffset: MediaQuery.of(context).padding.top,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (n) {
+            if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200 &&
+                !_mwLoadingMore &&
+                _mwHasNext) {
+              _loadMwFavorites();
+            }
+            return false;
+          },
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverAppBar(
+                pinned: true,
+                automaticallyImplyLeading: false,
+                backgroundColor: cs.surface,
+                surfaceTintColor: Colors.transparent,
+                title: const Text('书架'),
+              ),
+              if (_mwLoading)
+                SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: hp),
+                  sliver: SliverGrid(
+                    delegate: SliverChildBuilderDelegate(
+                      (_, _) => const ComicCardSkeleton(),
+                      childCount: 12,
+                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 130,
+                      childAspectRatio: 0.55,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                    ),
+                  ),
+                )
+              else if (_mwError != null)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.cloud_off,
+                            size: 48, color: cs.onSurfaceVariant),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(_mwError!, style: tt.bodySmall),
+                        const SizedBox(height: AppSpacing.md),
+                        FilledButton.tonal(
+                          onPressed: () => _loadMwFavorites(reset: true),
+                          child: const Text('重试'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (_mwFavorites.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.star_border,
+                            size: 64, color: cs.onSurfaceVariant),
+                        const SizedBox(height: AppSpacing.lg),
+                        Text('还没有收藏漫画',
+                            style: tt.titleMedium
+                                ?.copyWith(color: cs.onSurfaceVariant)),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: hp),
+                  sliver: SliverGrid(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) {
+                        if (i >= _mwFavorites.length) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(12),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+                        final fav = _mwFavorites[i];
+                        return _MwFavoriteCard(item: fav);
+                      },
+                      childCount:
+                          _mwFavorites.length + (_mwHasNext ? 1 : 0),
+                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 130,
+                      childAspectRatio: 0.55,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                    ),
+                  ),
+                ),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadLocalFavorites() async {
@@ -105,6 +240,45 @@ class _BookshelfPageState extends ConsumerState<BookshelfPage> {
       _localFavorites = list;
       _loadingLocalFavorites = false;
     });
+  }
+
+  // ── 漫屋吧云端收藏 ──
+
+  Future<void> _loadMwFavorites({bool reset = false}) async {
+    if (!_user.isManwabaLoggedIn) return;
+    if (reset) {
+      setState(() {
+        _mwLoading = true;
+        _mwError = null;
+        _mwPage = 1;
+        _mwFavorites.clear();
+      });
+    } else {
+      if (_mwLoadingMore || !_mwHasNext) return;
+      setState(() => _mwLoadingMore = true);
+    }
+    try {
+      final result = await ManwabaAuth.instance.listFavorites(
+        page: _mwPage,
+        pageSize: 30,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (reset) _mwFavorites.clear();
+        _mwFavorites.addAll(result.list);
+        _mwHasNext = result.hasNext;
+        if (result.hasNext) _mwPage++;
+        _mwLoading = false;
+        _mwLoadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _mwError = '$e';
+        _mwLoading = false;
+        _mwLoadingMore = false;
+      });
+    }
   }
 
   @override
@@ -126,6 +300,23 @@ class _BookshelfPageState extends ConsumerState<BookshelfPage> {
 
   void _onUserChanged() {
     if (!mounted) return;
+
+    // 漫屋吧账号登录态变化：刷新云端收藏。
+    final mwLoggedIn = _user.isManwabaLoggedIn;
+    if (mwLoggedIn != _lastMwLoggedIn) {
+      _lastMwLoggedIn = mwLoggedIn;
+      if (mwLoggedIn) {
+        _loadMwFavorites(reset: true);
+      } else {
+        setState(() {
+          _mwFavorites.clear();
+          _mwPage = 1;
+          _mwHasNext = true;
+        });
+      }
+      setState(() {});
+      return;
+    }
 
     final isLoggedIn = _user.isLoggedIn;
     final token = _user.token;
@@ -563,6 +754,46 @@ class _BookshelfPageState extends ConsumerState<BookshelfPage> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+
+    // 漫屋吧账号登录时：直接渲染云端收藏书架。
+    final mwView = _buildManwabaBookshelf(screenWidth);
+    if (mwView != null) return mwView;
+
+    // 未登录：提示登录（漫屋吧账号为收藏/记录的前提）。
+    if (!_user.isManwabaLoggedIn && !_user.isLoggedIn) {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.star_outline,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const SizedBox(height: AppSpacing.lg),
+                Text('登录后查看收藏',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  '收藏将与漫屋吧账号同步',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                FilledButton(
+                  onPressed: () =>
+                      context.pushNamed(AppRoutes.manwabaLogin),
+                  child: const Text('去登录'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final contentWidth = screenWidth.clamp(0.0, 900.0);
     final hp = (screenWidth - contentWidth) / 2 + 16;
 
@@ -1208,6 +1439,56 @@ class _OrderingTile extends StatelessWidget {
       trailing: selected ? Icon(Icons.check, color: cs.primary) : null,
       selected: selected,
       onTap: onTap,
+    );
+  }
+}
+
+class _MwFavoriteCard extends StatelessWidget {
+  final ManwabaFavoriteItem item;
+  const _MwFavoriteCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final source = ThirdPartySources.byKey('manwaba');
+    final pathWord = source?.encodeComicId(item.comicId) ?? 'manwaba:${item.comicId}';
+
+    return GestureDetector(
+      onTap: () => context.pushNamed(
+        AppRoutes.comicDetail,
+        pathParameters: {'pathWord': pathWord},
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: item.cover.isEmpty
+                  ? Container(
+                      color: cs.surfaceContainerHighest,
+                      child: Icon(Icons.book, color: cs.onSurfaceVariant),
+                    )
+                  : TpAwareImage(sourceKey: 'manwaba', url: item.cover),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            item.title,
+            style: tt.bodySmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (item.latestChapter != null && item.latestChapter!.isNotEmpty)
+            Text(
+              item.latestChapter!,
+              style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+        ],
+      ),
     );
   }
 }
