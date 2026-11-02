@@ -501,8 +501,438 @@ class _ThirdPartyComicDetailPageState extends State<ThirdPartyComicDetailPage> {
               ),
             ),
           ),
+        SliverToBoxAdapter(
+          child: _CommentsSection(comicId: _comicId),
+        ),
       ],
     );
   }
 }
 
+
+class _CommentsSection extends StatefulWidget {
+  final String comicId;
+  const _CommentsSection({required this.comicId});
+
+  @override
+  State<_CommentsSection> createState() => _CommentsSectionState();
+}
+
+class _CommentsSectionState extends State<_CommentsSection> {
+  final _user = UserManager();
+  final _inputCtrl = TextEditingController();
+  final List<ManwabaComment> _items = [];
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _posting = false;
+  int _page = 1;
+  int _total = 0;
+  bool _hasNext = true;
+  String _sort = 'hot';
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _user.addListener(_onLoginChanged);
+    _load(reset: true);
+  }
+
+  @override
+  void dispose() {
+    _user.removeListener(_onLoginChanged);
+    _inputCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onLoginChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _load({bool reset = false}) async {
+    if (reset) {
+      setState(() {
+        _loading = true;
+        _error = null;
+        _page = 1;
+        _items.clear();
+      });
+    } else {
+      if (_loadingMore || !_hasNext) return;
+      setState(() => _loadingMore = true);
+    }
+    try {
+      final r = await ManwabaAuth.instance.listComments(
+        comicId: widget.comicId,
+        page: _page,
+        pageSize: 20,
+        sort: _sort,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (reset) _items.clear();
+        _items.addAll(r.list);
+        _total = r.total;
+        _hasNext = r.hasNext;
+        if (r.hasNext) _page++;
+        _loading = false;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+        _loading = false;
+        _loadingMore = false;
+      });
+    }
+  }
+
+  Future<void> _submit() async {
+    final content = _inputCtrl.text.trim();
+    if (content.isEmpty) return;
+    setState(() => _posting = true);
+    try {
+      await ManwabaAuth.instance.postComment(
+        comicId: widget.comicId,
+        content: content,
+      );
+      if (!mounted) return;
+      _inputCtrl.clear();
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('评论成功')));
+      await _load(reset: true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('评论失败：$e')));
+    } finally {
+      if (mounted) setState(() => _posting = false);
+    }
+  }
+
+  Future<void> _like(ManwabaComment c) async {
+    if (!_user.isManwabaLoggedIn) {
+      context.pushNamed(AppRoutes.manwabaLogin);
+      return;
+    }
+    try {
+      await ManwabaAuth.instance.likeComment(c.id);
+      if (!mounted) return;
+      setState(() {
+        final idx = _items.indexWhere((e) => e.id == c.id);
+        if (idx >= 0) {
+          final old = _items[idx];
+          _items[idx] = ManwabaComment(
+            id: old.id,
+            content: old.content,
+            createdAt: old.createdAt,
+            likes: old.likes + 1,
+            feedCount: old.feedCount,
+            isLiked: true,
+            isEssential: old.isEssential,
+            pinnedAt: old.pinnedAt,
+            parentId: old.parentId,
+            chapterTitle: old.chapterTitle,
+            userId: old.userId,
+            username: old.username,
+            avatar: old.avatar,
+            level: old.level,
+            replyToName: old.replyToName,
+            replies: old.replies,
+          );
+        }
+      });
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final loggedIn = _user.isManwabaLoggedIn;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.comment_outlined, size: 18, color: cs.primary),
+              const SizedBox(width: 6),
+              Text(
+                '评论区${_total > 0 ? '（$_total）' : ''}',
+                style: tt.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () {
+                  _sort = _sort == 'hot' ? 'new' : 'hot';
+                  _load(reset: true);
+                },
+                child: Text(_sort == 'hot' ? '最热' : '最新'),
+              ),
+            ],
+          ),
+          // 输入框
+          if (loggedIn)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _inputCtrl,
+                      minLines: 1,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        hintText: '写下你的评论…',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _posting ? null : _submit,
+                    child: _posting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('发送'),
+                  ),
+                ],
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: OutlinedButton.icon(
+                onPressed: () => context.pushNamed(AppRoutes.manwabaLogin),
+                icon: const Icon(Icons.login, size: 18),
+                label: const Text('登录后发表评论'),
+              ),
+            ),
+          const SizedBox(height: 8),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null)
+            Center(
+              child: Column(
+                children: [
+                  Text(_error!, style: tt.bodySmall),
+                  const SizedBox(height: 8),
+                  FilledButton.tonal(
+                    onPressed: () => _load(reset: true),
+                    child: const Text('重试'),
+                  ),
+                ],
+              ),
+            )
+          else if (_items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: Text('暂无评论，快来发表第一条评论',
+                    style: tt.bodySmall
+                        ?.copyWith(color: cs.onSurfaceVariant)),
+              ),
+            )
+          else
+            ..._items.map((c) => _CommentTile(
+                  comment: c,
+                  onLike: () => _like(c),
+                )),
+          if (_hasNext)
+            Center(
+              child: _loadingMore
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: CircularProgressIndicator(),
+                    )
+                  : TextButton(
+                      onPressed: () => _load(),
+                      child: const Text('加载更多'),
+                    ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommentTile extends StatelessWidget {
+  final ManwabaComment comment;
+  final VoidCallback onLike;
+  const _CommentTile({required this.comment, required this.onLike});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: cs.primaryContainer,
+                child: Text(
+                  comment.username.isNotEmpty
+                      ? comment.username.substring(0, 1)
+                      : '漫',
+                  style: tt.bodySmall?.copyWith(
+                    color: cs.onPrimaryContainer,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            comment.username,
+                            style: tt.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: cs.primary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: cs.secondaryContainer,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'Lv.${comment.level}',
+                            style: tt.labelSmall
+                                ?.copyWith(color: cs.onSecondaryContainer),
+                          ),
+                        ),
+                        if (comment.isPinned)
+                          Container(
+                            margin: const EdgeInsets.only(left: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: cs.errorContainer,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text('置顶',
+                                style: tt.labelSmall
+                                    ?.copyWith(color: cs.onErrorContainer)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      comment.createdAt,
+                      style: tt.labelSmall
+                          ?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: onLike,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        comment.isLiked
+                            ? Icons.favorite
+                            : Icons.favorite_border,
+                        size: 16,
+                        color: comment.isLiked ? cs.primary : cs.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        comment.likes > 0 ? '${comment.likes}' : '赞',
+                        style: tt.labelSmall
+                            ?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(comment.content, style: tt.bodyMedium),
+          if (comment.chapterTitle.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              '谈及：${comment.chapterTitle}',
+              style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+          // 回复列表
+          if (comment.replies.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: comment.replies
+                    .map((r) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: RichText(
+                            text: TextSpan(
+                              style: tt.bodySmall,
+                              children: [
+                                TextSpan(
+                                  text: r.username,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: cs.primary,
+                                  ),
+                                ),
+                                if (r.replyToName != null &&
+                                    r.replyToName!.isNotEmpty) ...[
+                                  const TextSpan(text: ' 回复 '),
+                                  TextSpan(
+                                    text: r.replyToName,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: cs.primary,
+                                    ),
+                                  ),
+                                ],
+                                TextSpan(text: '：${r.content}'),
+                              ],
+                            ),
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}

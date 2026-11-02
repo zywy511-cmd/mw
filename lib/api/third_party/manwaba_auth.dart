@@ -360,6 +360,123 @@ class ManwabaAuth {
     _throwFrom(res, data);
   }
 
+  // ── 评论 ──
+
+  /// 分页拉取漫画评论。sort: hot / new。
+  Future<({List<ManwabaComment> list, int total, bool hasNext})>
+      listComments({
+    required String comicId,
+    int page = 1,
+    int pageSize = 20,
+    String sort = 'hot',
+  }) async {
+    final res = await _dio.get(
+      '$_apiBase/comments',
+      queryParameters: {
+        'comic_id': comicId,
+        'page': page,
+        'page_size': pageSize,
+        'sort': sort,
+      },
+      options: Options(headers: _authHeaders),
+    );
+    final data = res.data is Map<String, dynamic>
+        ? Map<String, dynamic>.from(res.data as Map)
+        : <String, dynamic>{};
+    if (data['code'] == 200 && data['data'] is Map) {
+      final root = Map<String, dynamic>.from(data['data'] as Map);
+      final total = (root['total'] as num?)?.toInt() ?? 0;
+      final rawList = (root['list'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => _parseComment(Map<String, dynamic>.from(e)))
+          .toList();
+      final totalPage = (total / pageSize).ceil();
+      return (list: rawList, total: total, hasNext: page < totalPage);
+    }
+    _throwFrom(res, data);
+  }
+
+  /// 发表评论/回复。parentId=0 为顶层评论。
+  Future<void> postComment({
+    required String comicId,
+    required String content,
+    int parentId = 0,
+    String replyToId = '',
+  }) async {
+    final res = await _dio.post(
+      '$_apiBase/comment',
+      options: Options(headers: _authHeaders),
+      data: {
+        'comic_id': comicId,
+        'content': content,
+        'parent_id': parentId,
+        'reply_to_id': replyToId,
+      },
+    );
+    final data = res.data is Map<String, dynamic>
+        ? Map<String, dynamic>.from(res.data as Map)
+        : <String, dynamic>{};
+    if (data['code'] == 200) return;
+    _throwFrom(res, data);
+  }
+
+  /// 点赞评论。
+  Future<void> likeComment(int commentId) async {
+    final res = await _dio.post(
+      '$_apiBase/comment/$commentId/feed',
+      options: Options(headers: _authHeaders),
+    );
+    final data = res.data is Map<String, dynamic>
+        ? Map<String, dynamic>.from(res.data as Map)
+        : <String, dynamic>{};
+    if (data['code'] == 200) return;
+    _throwFrom(res, data);
+  }
+
+  /// 删除自己的评论。
+  Future<void> deleteComment(int commentId) async {
+    final res = await _dio.delete(
+      '$_apiBase/comment/$commentId',
+      options: Options(headers: _authHeaders),
+    );
+    final data = res.data is Map<String, dynamic>
+        ? Map<String, dynamic>.from(res.data as Map)
+        : <String, dynamic>{};
+    if (data['code'] == 200) return;
+    _throwFrom(res, data);
+  }
+
+  ManwabaComment _parseComment(Map<String, dynamic> e) {
+    final user = e['user'] is Map
+        ? Map<String, dynamic>.from(e['user'] as Map)
+        : <String, dynamic>{};
+    final replyUser = e['reply_user'] is Map
+        ? Map<String, dynamic>.from(e['reply_user'] as Map)
+        : null;
+    final replies = (e['replies'] as List? ?? const [])
+        .whereType<Map>()
+        .map((r) => _parseComment(Map<String, dynamic>.from(r)))
+        .toList();
+    return ManwabaComment(
+      id: (e['id'] as num?)?.toInt() ?? 0,
+      content: '${e['content'] ?? ''}',
+      createdAt: '${e['created_at'] ?? ''}',
+      likes: (e['likes'] as num?)?.toInt() ?? 0,
+      feedCount: (e['feed_count'] as num?)?.toInt() ?? 0,
+      isLiked: e['is_liked'] == true,
+      isEssential: e['is_essential'] == true,
+      pinnedAt: '${e['pinned_at'] ?? ''}',
+      parentId: (e['parent_id'] as num?)?.toInt() ?? 0,
+      chapterTitle: '${e['chapter_title'] ?? ''}',
+      userId: '${user['id'] ?? ''}',
+      username: '${user['nickname'] ?? user['username'] ?? ''}',
+      avatar: '${user['avatar'] ?? ''}',
+      level: (user['level'] as num?)?.toInt() ?? 1,
+      replyToName: replyUser?['nickname'] ?? replyUser?['username'],
+      replies: replies,
+    );
+  }
+
   DateTime? _parseTime(dynamic raw) {
     if (raw == null) return null;
     if (raw is num) {
@@ -438,4 +555,45 @@ class ManwabaHistoryItem {
         cover: ManwabaSource.instance.normalizeImageUrl(cover),
         authors: const [],
       );
+}
+
+/// 漫屋吧评论项。
+class ManwabaComment {
+  final int id;
+  final String content;
+  final String createdAt;
+  final int likes;
+  final int feedCount;
+  final bool isLiked;
+  final bool isEssential;
+  final String pinnedAt;
+  final int parentId;
+  final String chapterTitle;
+  final String userId;
+  final String username;
+  final String avatar;
+  final int level;
+  final String? replyToName;
+  final List<ManwabaComment> replies;
+
+  const ManwabaComment({
+    required this.id,
+    required this.content,
+    required this.createdAt,
+    required this.likes,
+    required this.feedCount,
+    required this.isLiked,
+    required this.isEssential,
+    required this.pinnedAt,
+    required this.parentId,
+    required this.chapterTitle,
+    required this.userId,
+    required this.username,
+    required this.avatar,
+    required this.level,
+    this.replyToName,
+    this.replies = const [],
+  });
+
+  bool get isPinned => pinnedAt.isNotEmpty;
 }
