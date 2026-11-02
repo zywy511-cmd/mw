@@ -168,7 +168,7 @@ class _ManwabaLoginPageState extends State<ManwabaLoginPage> {
                 TextFormField(
                   controller: _nicknameCtrl,
                   decoration: const InputDecoration(
-                    labelText: '昵称（可选）',
+                    labelText: '昵称',
                     prefixIcon: Icon(Icons.badge),
                     border: OutlineInputBorder(),
                   ),
@@ -178,7 +178,7 @@ class _ManwabaLoginPageState extends State<ManwabaLoginPage> {
                   controller: _emailCtrl,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
-                    labelText: '邮箱（可选）',
+                    labelText: '邮箱',
                     prefixIcon: Icon(Icons.email_outlined),
                     border: OutlineInputBorder(),
                   ),
@@ -186,21 +186,27 @@ class _ManwabaLoginPageState extends State<ManwabaLoginPage> {
                 const SizedBox(height: AppSpacing.md),
                 Row(
                   children: [
-                    if (_captchaBytes != null)
-                      GestureDetector(
-                        onTap: _refreshCaptcha,
-                        child: Container(
-                          height: 48,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: cs.outlineVariant),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Image.memory(_captchaBytes!,
-                              fit: BoxFit.fitHeight),
+                    GestureDetector(
+                      onTap: _refreshCaptcha,
+                      child: Container(
+                        height: 48,
+                        width: 120,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: cs.outlineVariant),
+                          borderRadius: BorderRadius.circular(4),
+                          color: cs.surfaceContainerHighest,
                         ),
-                      )
-                    else
-                      const SizedBox(height: 48, width: 120),
+                        child: _captchaBytes != null
+                            ? Image.memory(_captchaBytes!,
+                                fit: BoxFit.fitHeight)
+                            : Text(
+                                '点击加载',
+                                style: tt.bodySmall
+                                    ?.copyWith(color: cs.onSurfaceVariant),
+                              ),
+                      ),
+                    ),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: TextFormField(

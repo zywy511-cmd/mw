@@ -81,32 +81,40 @@ class ManwabaAuth {
       '$_apiBase/user/captcha',
       options: Options(headers: _authHeaders),
     );
-    final data = res.data is Map<String, dynamic>
+    final raw = res.data is Map<String, dynamic>
         ? Map<String, dynamic>.from(res.data as Map)
         : <String, dynamic>{};
-    if (data['code'] == 200 && data['data'] is Map) {
-      final d = Map<String, dynamic>.from(data['data'] as Map);
-      final img = '${d['img'] ?? ''}';
-      final captchaId = '${d['captchaId'] ?? ''}';
-      Uint8List bytes;
-      if (img.startsWith('data:')) {
-        final comma = img.indexOf(',');
-        final b64 = comma >= 0 ? img.substring(comma + 1) : img;
-        bytes = _decodeBase64(b64);
-      } else {
-        // 验证码是一个 URL，拉取图片字节。
-        final imgRes = await _dio.get<List<int>>(
-          img.startsWith('http') ? img : 'https://${ManwabaSource.instance.currentApiHost}$img',
-          options: Options(
-            responseType: ResponseType.bytes,
-            headers: {'User-Agent': userAgent},
-          ),
-        );
-        bytes = Uint8List.fromList(imgRes.data ?? const []);
-      }
-      return (bytes: bytes, captchaId: captchaId);
+    // 站点验证码接口直接返回顶层 {captchaId, img}，无 code/data 包装；
+    // 兼容极少数被包装在 data 里的情况。
+    Map<String, dynamic> d = raw;
+    if (raw['img'] == null && raw['data'] is Map) {
+      d = Map<String, dynamic>.from(raw['data'] as Map);
     }
-    _throwFrom(res, data);
+    final img = '${d['img'] ?? ''}';
+    final captchaId = '${d['captchaId'] ?? ''}';
+    if (img.isEmpty) {
+      throw '验证码加载失败';
+    }
+    Uint8List bytes;
+    if (img.startsWith('data:')) {
+      final comma = img.indexOf(',');
+      final b64 = comma >= 0 ? img.substring(comma + 1) : img;
+      bytes = _decodeBase64(b64);
+    } else {
+      // 验证码是一个 URL，拉取图片字节。
+      final imgRes = await _dio.get<List<int>>(
+        img.startsWith('http')
+            ? img
+            : 'https://${ManwabaSource.instance.currentApiHost}$img',
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'User-Agent': userAgent},
+        ),
+      );
+      bytes = Uint8List.fromList(imgRes.data ?? const []);
+    }
+    if (bytes.isEmpty) throw '验证码图片为空';
+    return (bytes: bytes, captchaId: captchaId);
   }
 
   Uint8List _decodeBase64(String b64) {

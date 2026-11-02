@@ -255,22 +255,6 @@ class _GeneralPageState extends State<GeneralPage> {
                     onChanged: canAutoLogin ? _user.setAutoLogin : null,
                   ),
                   const Divider(height: 1, indent: 16, endIndent: 16),
-                  SwitchListTile(
-                    secondary: const Icon(Icons.movie_outlined),
-                    title: Text(l10n.animeFeatureTitle),
-                    subtitle: Text(l10n.animeFeatureDesc, style: tt.bodySmall),
-                    value: _user.animeFeatureEnabled,
-                    onChanged: _user.setAnimeFeatureEnabled,
-                  ),
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-                  SwitchListTile(
-                    secondary: const Icon(Icons.view_carousel_outlined),
-                    title: Text(l10n.bannerVisibleTitle),
-                    subtitle: Text(l10n.bannerVisibleDesc, style: tt.bodySmall),
-                    value: _user.bannerVisible,
-                    onChanged: _user.setBannerVisible,
-                  ),
-                  const Divider(height: 1, indent: 16, endIndent: 16),
                   ListTile(
                     leading: const Icon(Icons.language_rounded),
                     title: Text(l10n.languageTitle),

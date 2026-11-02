@@ -32,10 +32,9 @@ class ManwabaSource extends ThirdPartyComicSource {
   static const lostPageHosts = ['https://manwami.cc', 'https://manwala.cc'];
   static const candidateApiHosts = [
     'manwabb.cc',
-    'manwali.cc',
-    'manwaye.cc',
-    'manwalu.cc',
-    'mwmw.cc',
+    'manwadz.cc',
+    'manwacn.cc',
+    'manwayy.cc',
   ];
   static const candidateImageHosts = [
     'tu.mwzu.cc',
@@ -49,10 +48,9 @@ class ManwabaSource extends ThirdPartyComicSource {
   static const apiHostOptions = [
     ('auto', '自动检测(推荐)'),
     ('manwabb.cc', 'manwabb.cc'),
-    ('manwali.cc', 'manwali.cc'),
-    ('manwaye.cc', 'manwaye.cc'),
-    ('manwalu.cc', 'manwalu.cc'),
-    ('mwmw.cc', 'mwmw.cc'),
+    ('manwadz.cc', 'manwadz.cc'),
+    ('manwacn.cc', 'manwacn.cc'),
+    ('manwayy.cc', 'manwayy.cc'),
   ];
 
   /// 设置下拉选项：图片源。
