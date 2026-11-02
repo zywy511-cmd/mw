@@ -381,20 +381,36 @@ class _ThirdPartyComicDetailPageState extends State<ThirdPartyComicDetailPage> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _openPrimaryReader,
-                  icon: Icon(
-                    hasProgress ? Icons.history : Icons.play_arrow,
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _openPrimaryReader,
+                      icon: Icon(
+                        hasProgress ? Icons.history : Icons.play_arrow,
+                      ),
+                      label: Text(
+                        hasProgress
+                            ? '继续阅读：${_progress!.chapterName}'
+                                '${_progress!.page > 1 ? ' · 第${_progress!.page}页' : ''}'
+                            : '开始阅读（第一话）',
+                      ),
+                    ),
                   ),
-                  label: Text(
-                    hasProgress
-                        ? '继续阅读：${_progress!.chapterName}'
-                            '${_progress!.page > 1 ? ' · 第${_progress!.page}页' : ''}'
-                        : '开始阅读（第一话）',
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.pushNamed(
+                        AppRoutes.manwabaComments,
+                        pathParameters: {'comicId': _comicId},
+                      ),
+                      icon: const Icon(Icons.comment_outlined, size: 18),
+                      label: const Text('评论区'),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -501,24 +517,21 @@ class _ThirdPartyComicDetailPageState extends State<ThirdPartyComicDetailPage> {
               ),
             ),
           ),
-        SliverToBoxAdapter(
-          child: _CommentsSection(comicId: _comicId),
-        ),
       ],
     );
   }
 }
 
 
-class _CommentsSection extends StatefulWidget {
+class ManwabaCommentsPage extends StatefulWidget {
   final String comicId;
-  const _CommentsSection({required this.comicId});
+  const ManwabaCommentsPage({super.key, required this.comicId});
 
   @override
-  State<_CommentsSection> createState() => _CommentsSectionState();
+  State<ManwabaCommentsPage> createState() => _ManwabaCommentsPageState();
 }
 
-class _CommentsSectionState extends State<_CommentsSection> {
+class _ManwabaCommentsPageState extends State<ManwabaCommentsPage> {
   final _user = UserManager();
   final _inputCtrl = TextEditingController();
   final List<ManwabaComment> _items = [];
@@ -652,117 +665,120 @@ class _CommentsSectionState extends State<_CommentsSection> {
     final tt = Theme.of(context).textTheme;
     final loggedIn = _user.isManwabaLoggedIn;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.comment_outlined, size: 18, color: cs.primary),
-              const SizedBox(width: 6),
-              Text(
-                '评论区${_total > 0 ? '（$_total）' : ''}',
-                style: tt.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: () {
-                  _sort = _sort == 'hot' ? 'new' : 'hot';
-                  _load(reset: true);
-                },
-                child: Text(_sort == 'hot' ? '最热' : '最新'),
-              ),
-            ],
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('评论区${_total > 0 ? '（$_total）' : ''}'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _sort = _sort == 'hot' ? 'new' : 'hot';
+              _load(reset: true);
+            },
+            child: Text(_sort == 'hot' ? '最热' : '最新'),
           ),
-          // 输入框
-          if (loggedIn)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _inputCtrl,
-                      minLines: 1,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        hintText: '写下你的评论…',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _posting ? null : _submit,
-                    child: _posting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('发送'),
-                  ),
-                ],
-              ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: OutlinedButton.icon(
-                onPressed: () => context.pushNamed(AppRoutes.manwabaLogin),
-                icon: const Icon(Icons.login, size: 18),
-                label: const Text('登录后发表评论'),
-              ),
-            ),
-          const SizedBox(height: 8),
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_error != null)
-            Center(
-              child: Column(
-                children: [
-                  Text(_error!, style: tt.bodySmall),
-                  const SizedBox(height: 8),
-                  FilledButton.tonal(
-                    onPressed: () => _load(reset: true),
-                    child: const Text('重试'),
-                  ),
-                ],
-              ),
-            )
-          else if (_items.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Center(
-                child: Text('暂无评论，快来发表第一条评论',
-                    style: tt.bodySmall
-                        ?.copyWith(color: cs.onSurfaceVariant)),
-              ),
-            )
-          else
-            ..._items.map((c) => _CommentTile(
-                  comment: c,
-                  onLike: () => _like(c),
-                )),
-          if (_hasNext)
-            Center(
-              child: _loadingMore
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: CircularProgressIndicator(),
-                    )
-                  : TextButton(
-                      onPressed: () => _load(),
-                      child: const Text('加载更多'),
-                    ),
-            ),
         ],
       ),
+      body: RefreshIndicator(
+        onRefresh: () => _load(reset: true),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(32),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Text(_error!, style: tt.bodySmall),
+                      const SizedBox(height: 8),
+                      FilledButton.tonal(
+                        onPressed: () => _load(reset: true),
+                        child: const Text('重试'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (_items.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(32),
+                child: Center(
+                  child: Text('暂无评论，快来发表第一条评论',
+                      style: tt.bodySmall
+                          ?.copyWith(color: cs.onSurfaceVariant)),
+                ),
+              )
+            else
+              ..._items.map((c) => _CommentTile(
+                    comment: c,
+                    onLike: () => _like(c),
+                  )),
+            if (_hasNext)
+              Center(
+                child: _loadingMore
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(),
+                      )
+                    : TextButton(
+                        onPressed: () => _load(),
+                        child: const Text('加载更多'),
+                      ),
+              ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: loggedIn
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _inputCtrl,
+                        minLines: 1,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          hintText: '写下你的评论…',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      onPressed: _posting ? null : _submit,
+                      icon: _posting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => context.pushNamed(AppRoutes.manwabaLogin),
+                    icon: const Icon(Icons.login, size: 18),
+                    label: const Text('登录后发表评论'),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }
