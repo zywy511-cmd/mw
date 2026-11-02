@@ -35,6 +35,10 @@ class ManwabaSource extends ThirdPartyComicSource {
     'manwadz.cc',
     'manwacn.cc',
     'manwayy.cc',
+    'manwali.cc',
+    'manwaye.cc',
+    'manwalu.cc',
+    'mwmw.cc',
   ];
   static const candidateImageHosts = [
     'tu.mwzu.cc',
@@ -51,6 +55,10 @@ class ManwabaSource extends ThirdPartyComicSource {
     ('manwadz.cc', 'manwadz.cc'),
     ('manwacn.cc', 'manwacn.cc'),
     ('manwayy.cc', 'manwayy.cc'),
+    ('manwali.cc', 'manwali.cc'),
+    ('manwaye.cc', 'manwaye.cc'),
+    ('manwalu.cc', 'manwalu.cc'),
+    ('mwmw.cc', 'mwmw.cc'),
   ];
 
   /// 设置下拉选项：图片源。
