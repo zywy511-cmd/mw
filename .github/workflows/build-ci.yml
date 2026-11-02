@@ -34,6 +34,7 @@ jobs:
           cache: "gradle"
 
       - name: Restore Android signing files
+        id: signing
         shell: bash
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -43,21 +44,26 @@ jobs:
         run: |
           set -euo pipefail
 
-          test -n "$ANDROID_KEYSTORE_BASE64"
-          test -n "$ANDROID_KEYSTORE_PASSWORD"
-          test -n "$ANDROID_KEY_ALIAS"
-          test -n "$ANDROID_KEY_PASSWORD"
-
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
-
-          cat > android/key.properties <<EOF
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && \
+             [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && \
+             [ -n "$ANDROID_KEY_ALIAS" ] && \
+             [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+            cat > android/key.properties <<EOF
           storeFile=../upload-keystore.jks
           storePassword=$ANDROID_KEYSTORE_PASSWORD
           keyAlias=$ANDROID_KEY_ALIAS
           keyPassword=$ANDROID_KEY_PASSWORD
           EOF
+            echo "已配置签名密钥，构建 release 包。"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "未检测到签名密钥，降级构建 debug 包（可直接安装测试）。"
+          fi
 
       - name: Validate Android signing key
+        if: steps.signing.outputs.signed == 'true'
         shell: bash
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -90,10 +96,15 @@ jobs:
         env:
           DANDANPLAY_APP_ID: ${{ secrets.DANDANPLAY_APP_ID }}
           DANDANPLAY_APP_SECRET: ${{ secrets.DANDANPLAY_APP_SECRET }}
-        run: >
-          flutter build apk --release --target-platform android-arm64
-          --dart-define=DANDANPLAY_APP_ID="${DANDANPLAY_APP_ID}"
-          --dart-define=DANDANPLAY_APP_SECRET="${DANDANPLAY_APP_SECRET}"
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            flutter build apk --release --target-platform android-arm64 \
+              --dart-define=DANDANPLAY_APP_ID="${DANDANPLAY_APP_ID}" \
+              --dart-define=DANDANPLAY_APP_SECRET="${DANDANPLAY_APP_SECRET}"
+          else
+            flutter build apk --debug --target-platform android-arm64
+          fi
 
       - name: Rename APK
         shell: bash
@@ -103,7 +114,11 @@ jobs:
           test -n "$APP_VERSION"
 
           cd build/app/outputs/flutter-apk
-          mv app-release.apk "kira-${APP_VERSION}-arm64-v8a.apk"
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            mv app-release.apk "kira-${APP_VERSION}-arm64-v8a.apk"
+          else
+            mv app-debug.apk "kira-${APP_VERSION}-arm64-v8a-debug.apk"
+          fi
           ls -lh kira-*.apk
 
       - name: Upload APK artifacts
