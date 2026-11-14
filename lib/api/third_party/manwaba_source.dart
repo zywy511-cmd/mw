@@ -28,7 +28,8 @@ class ManwabaSource extends ThirdPartyComicSource {
 
   // ── 站点常量（与 Venera 源一致）──
   static const defaultApiHost = 'manwabb.cc';
-  static const defaultImageHost = 'tu.mwzu.cc';
+  /// 默认图片源：稳定源 mwtuwu.cc（自动检测不稳定，故不再作为默认值）。
+  static const defaultImageHost = 'mwtuwu.cc';
   static const lostPageHosts = ['https://manwami.cc', 'https://manwala.cc'];
   static const candidateApiHosts = [
     'manwabb.cc',

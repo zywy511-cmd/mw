@@ -183,6 +183,8 @@ class UserManager extends ChangeNotifier {
   static const _keyTpMangaSource = 'tp_manga_source';
   static const _keyManwabaApiHost = 'tp_manwaba_api_host';
   static const _keyManwabaImageHost = 'tp_manwaba_image_host';
+  static const _keyManwabaImageHostMigrated =
+      'tp_manwaba_image_host_migrated';
   static const _keyManwabaDetectedApi = 'tp_manwaba_detected_api';
   static const _keyManwabaDetectedImage = 'tp_manwaba_detected_image';
   static const _keyManwabaToken = 'tp_manwaba_token';
@@ -279,7 +281,7 @@ class UserManager extends ChangeNotifier {
   // 第三方漫源（漫屋吧）主页选中项
   String _tpMangaSource = 'manwaba';
   String _manwabaApiHost = 'auto';
-  String _manwabaImageHost = 'auto';
+  String _manwabaImageHost = 'mwtuwu.cc';
   String _manwabaDetectedApiHost = '';
   String _manwabaDetectedImageHost = '';
   // 漫屋吧账号系统
@@ -659,7 +661,17 @@ class UserManager extends ChangeNotifier {
     _mangaHomeSource = prefs.getString(_keyMangaHomeSource) ?? 'manwaba';
     _tpMangaSource = prefs.getString(_keyTpMangaSource) ?? 'manwaba';
     _manwabaApiHost = prefs.getString(_keyManwabaApiHost) ?? 'auto';
-    _manwabaImageHost = prefs.getString(_keyManwabaImageHost) ?? 'auto';
+    _manwabaImageHost = prefs.getString(_keyManwabaImageHost) ?? 'mwtuwu.cc';
+    // 一次性迁移：旧版本默认「自动检测」不稳定，统一改为稳定源 mwtuwu.cc。
+    // 仅迁移旧默认值（auto/空），用户手动选择过的其它源保持不变。
+    if (!prefs.getBool(_keyManwabaImageHostMigrated)) {
+      final legacy = _manwabaImageHost.trim();
+      if (legacy.isEmpty || legacy == 'auto') {
+        _manwabaImageHost = 'mwtuwu.cc';
+        await prefs.setString(_keyManwabaImageHost, _manwabaImageHost);
+      }
+      await prefs.setBool(_keyManwabaImageHostMigrated, true);
+    }
     _manwabaDetectedApiHost =
         prefs.getString(_keyManwabaDetectedApi)?.trim() ?? '';
     _manwabaDetectedImageHost =

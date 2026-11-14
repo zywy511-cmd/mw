@@ -1579,7 +1579,7 @@ class _NetworkPageState extends State<NetworkPage>
 
   Future<void> _saveManwabaSettings() async {
     final api = _manwabaApiHost?.trim() ?? 'auto';
-    final image = _manwabaImageHost?.trim() ?? 'auto';
+    final image = _manwabaImageHost?.trim() ?? 'mwtuwu.cc';
     await _user.setManwabaApiHost(api);
     await _user.setManwabaImageHost(image);
     if (mounted) {
