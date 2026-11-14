@@ -169,7 +169,8 @@ jobs:
               --latest=false
 
             gh release upload "$TAG" "$APK" \
-              --repo="$GITHUB_REPOSITORY"
+              --repo="$GITHUB_REPOSITORY" \
+              --clobber
           else
             gh release create "$TAG" "$APK" \
               --repo="$GITHUB_REPOSITORY" \
