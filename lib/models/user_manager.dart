@@ -664,7 +664,7 @@ class UserManager extends ChangeNotifier {
     _manwabaImageHost = prefs.getString(_keyManwabaImageHost) ?? 'mwtuwu.cc';
     // 一次性迁移：旧版本默认「自动检测」不稳定，统一改为稳定源 mwtuwu.cc。
     // 仅迁移旧默认值（auto/空），用户手动选择过的其它源保持不变。
-    if (!prefs.getBool(_keyManwabaImageHostMigrated)) {
+    if (prefs.getBool(_keyManwabaImageHostMigrated) != true) {
       final legacy = _manwabaImageHost.trim();
       if (legacy.isEmpty || legacy == 'auto') {
         _manwabaImageHost = 'mwtuwu.cc';
